@@ -98,6 +98,98 @@ func init() {
 	rootCmd.AddCommand(syncCmd, listCmd)
 }
 
+// 生成默认配置文件
+func generateDefaultConfig() error {
+	// 获取程序所在目录
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("无法获取程序路径: %v", err)
+	}
+	exeDir := filepath.Dir(exe)
+	configPath := filepath.Join(exeDir, "nib.yaml")
+
+	// 检查配置文件是否已存在
+	if _, err := os.Stat(configPath); err == nil {
+		return nil // 配置文件已存在，不需要生成
+	}
+
+	// 创建默认配置内容
+	defaultConfig := `# NodeImage Backup Tool 配置文件
+# 请将 YOUR_API_TOKEN_HERE 替换为您的真实 API Token
+
+# API Token (必需)
+token: "YOUR_API_TOKEN_HERE"
+
+# 本地同步目录 (可选，默认: 程序目录/images)
+dir: ""
+
+# API 基础地址 (可选，默认: https://api.nodeimage.com)
+api_base: "https://api.nodeimage.com"
+
+# 并发下载数量 (可选，默认: 10)
+workers: 10
+`
+
+	// 写入配置文件
+	if err := os.WriteFile(configPath, []byte(defaultConfig), 0644); err != nil {
+		return fmt.Errorf("创建配置文件失败: %v", err)
+	}
+
+	fmt.Printf("📝 已自动生成配置文件: %s\n", configPath)
+	fmt.Printf("🔑 请编辑配置文件，将 YOUR_API_TOKEN_HERE 替换为您的真实 API Token\n")
+	fmt.Printf("💡 配置文件说明:\n")
+	fmt.Printf("   - token: 您的 NodeImage API Token\n")
+	fmt.Printf("   - dir: 本地同步目录 (留空使用默认目录)\n")
+	fmt.Printf("   - workers: 并发下载数量\n")
+	fmt.Printf("\n")
+
+	return nil
+}
+
+// 根据token生成配置文件
+func generateConfigWithToken(token string) error {
+	// 获取程序所在目录
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("无法获取程序路径: %v", err)
+	}
+	exeDir := filepath.Dir(exe)
+	configPath := filepath.Join(exeDir, "nib.yaml")
+
+	// 检查配置文件是否已存在
+	if _, err := os.Stat(configPath); err == nil {
+		return nil // 配置文件已存在，不需要生成
+	}
+
+	// 创建包含token的配置内容
+	configContent := fmt.Sprintf(`# NodeImage Backup Tool 配置文件
+# 此配置文件已根据您提供的token自动生成
+
+# API Token (必需)
+token: "%s"
+
+# 本地同步目录 (可选，默认: 程序目录/images)
+dir: ""
+
+# API 基础地址 (可选，默认: https://api.nodeimage.com)
+api_base: "https://api.nodeimage.com"
+
+# 并发下载数量 (可选，默认: 10)
+workers: 10
+`, token)
+
+	// 写入配置文件
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		return fmt.Errorf("创建配置文件失败: %v", err)
+	}
+
+	fmt.Printf("📝 已根据您提供的token自动生成配置文件: %s\n", configPath)
+	fmt.Printf("✅ 下次运行程序时无需再提供token参数\n")
+	fmt.Printf("💡 如需修改配置，请编辑此配置文件\n\n")
+
+	return nil
+}
+
 // 读取配置文件
 func loadConfig(configPath string) (*Config, error) {
 	paths := []string{}
@@ -106,8 +198,11 @@ func loadConfig(configPath string) (*Config, error) {
 	} else {
 		paths = append(paths, "nib.yaml", "nib.yml")
 	}
+
+	configFound := false
 	for _, path := range paths {
 		if _, err := os.Stat(path); err == nil {
+			configFound = true
 			f, err := os.Open(path)
 			if err != nil {
 				return nil, fmt.Errorf("无法打开配置文件: %v", err)
@@ -121,7 +216,15 @@ func loadConfig(configPath string) (*Config, error) {
 			return &cfg, nil
 		}
 	}
-	return &Config{}, nil // 没有配置文件也不报错，返回空配置
+
+	// 如果没有找到配置文件，自动生成一个
+	if !configFound {
+		if err := generateDefaultConfig(); err != nil {
+			return nil, fmt.Errorf("生成配置文件失败: %v", err)
+		}
+	}
+
+	return &Config{}, nil // 返回空配置，让用户先编辑配置文件
 }
 
 // 合并命令行参数和配置文件，命令行优先
@@ -133,11 +236,21 @@ type cliParams struct {
 	debug   bool
 }
 
-func mergeConfig(cfg *Config, cli cliParams) Config {
+func mergeConfig(cfg *Config, cli cliParams) (Config, error) {
 	final := *cfg
+
+	// 如果命令行提供了token，优先使用
 	if cli.token != "" {
 		final.Token = cli.token
+
+		// 如果配置文件中没有token（说明是第一次运行），自动生成配置文件
+		if cfg.Token == "" {
+			if err := generateConfigWithToken(cli.token); err != nil {
+				return final, fmt.Errorf("自动生成配置文件失败: %v", err)
+			}
+		}
 	}
+
 	if cli.dir != "" {
 		final.LocalDir = cli.dir
 	}
@@ -160,7 +273,7 @@ func mergeConfig(cfg *Config, cli cliParams) Config {
 	if final.APIBase == "" {
 		final.APIBase = "https://api.nodeimage.com"
 	}
-	return final
+	return final, nil
 }
 
 // 获取远程图片列表
@@ -336,10 +449,16 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	config = mergeConfig(cfgFile, cli)
+	config, err = mergeConfig(cfgFile, cli)
+	if err != nil {
+		return err
+	}
 
-	if config.Token == "" {
-		return fmt.Errorf("请通过配置文件或 -t 参数提供API Token")
+	if config.Token == "" || config.Token == "YOUR_API_TOKEN_HERE" {
+		fmt.Printf("❌ 错误: 请通过配置文件或 -t 参数提供API Token\n")
+		fmt.Printf("💡 如果配置文件已生成，请编辑配置文件并设置正确的 token\n")
+		fmt.Printf("💡 或者使用命令行参数: ./nib -t YOUR_TOKEN\n")
+		return fmt.Errorf("API Token 未配置")
 	}
 
 	// 新增：自动创建本地目录
@@ -462,9 +581,15 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	config = mergeConfig(cfgFile, cli)
-	if config.Token == "" {
-		return fmt.Errorf("请通过配置文件或 -t 参数提供API Token")
+	config, err = mergeConfig(cfgFile, cli)
+	if err != nil {
+		return err
+	}
+	if config.Token == "" || config.Token == "YOUR_API_TOKEN_HERE" {
+		fmt.Printf("❌ 错误: 请通过配置文件或 -t 参数提供API Token\n")
+		fmt.Printf("💡 如果配置文件已生成，请编辑配置文件并设置正确的 token\n")
+		fmt.Printf("💡 或者使用命令行参数: ./nib list -t YOUR_TOKEN\n")
+		return fmt.Errorf("API Token 未配置")
 	}
 	fmt.Printf("🔍 正在获取远程图片列表...\n")
 	remoteImages, err := getRemoteImages(config.Token, cli.debug)
