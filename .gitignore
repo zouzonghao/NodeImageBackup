@@ -45,5 +45,8 @@ temp/
 nib.yaml
 nib.yml
 
+# API 文档 (包含敏感信息)
+API.txt
+
 # 用户数据目录
 images/
