@@ -89,24 +89,36 @@ jobs:
         # Create release directory
         mkdir -p release
         
-        # Move artifacts to release directory
-        for dir in */; do
-          if [ -d "$dir" ]; then
-            mv "$dir"/* release/
-          fi
-        done
+        # List current directory contents for debugging
+        echo "Current directory contents:"
+        ls -la
+        
+        # Move artifacts to release directory (artifacts are already in current directory)
+        mv nib-* release/ 2>/dev/null || echo "No artifacts to move"
         
         # Create compressed archives
         cd release
-        tar -czf nib-linux-amd64.tar.gz nib-linux-amd64
-        tar -czf nib-linux-arm64.tar.gz nib-linux-arm64
-        tar -czf nib-darwin-amd64.tar.gz nib-darwin-amd64
-        tar -czf nib-darwin-arm64.tar.gz nib-darwin-arm64
-        zip nib-windows-amd64.zip nib-windows-amd64.exe
-        zip nib-windows-arm64.zip nib-windows-arm64.exe
+        echo "Release directory contents:"
+        ls -la
+        
+        # Create compressed archives for each platform
+        for file in nib-*; do
+          if [[ -f "$file" ]]; then
+            if [[ "$file" == *.exe ]]; then
+              # Windows files
+              zip "${file%.exe}.zip" "$file"
+            else
+              # Unix files
+              tar -czf "${file}.tar.gz" "$file"
+            fi
+          fi
+        done
         
         # Create checksums
         sha256sum * > checksums.txt
+        
+        echo "Final release contents:"
+        ls -la
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
