@@ -1,0 +1,119 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: nib-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_name: nib-linux-arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_name: nib-windows-amd64.exe
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+            artifact_name: nib-windows-arm64.exe
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact_name: nib-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact_name: nib-darwin-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Build
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        go mod download
+        go build -ldflags "-s -w" -o ${{ matrix.artifact_name }} main.go
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create release archive
+      run: |
+        # Create release directory
+        mkdir -p release
+        
+        # Move artifacts to release directory
+        for dir in */; do
+          if [ -d "$dir" ]; then
+            mv "$dir"/* release/
+          fi
+        done
+        
+        # Create compressed archives
+        cd release
+        tar -czf nib-linux-amd64.tar.gz nib-linux-amd64
+        tar -czf nib-linux-arm64.tar.gz nib-linux-arm64
+        tar -czf nib-darwin-amd64.tar.gz nib-darwin-amd64
+        tar -czf nib-darwin-arm64.tar.gz nib-darwin-arm64
+        zip nib-windows-amd64.zip nib-windows-amd64.exe
+        zip nib-windows-arm64.zip nib-windows-arm64.exe
+        
+        # Create checksums
+        sha256sum * > checksums.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

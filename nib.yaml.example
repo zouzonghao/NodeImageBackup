@@ -1,0 +1,18 @@
+# NodeImage Backup Tool 配置文件模板
+# 复制此文件为 nib.yaml 并填入你的真实配置
+
+# API Token (必需)
+# 从 NodeImage 获取你的 API Token
+token: YOUR_API_TOKEN_HERE
+
+# 本地同步目录 (可选，默认: 程序目录/images)
+# 图片将被下载到此目录
+dir: ./images
+
+# 并发下载数量 (可选，默认: 10)
+# 根据网络情况调整，网络好可以设置更高
+workers: 10
+
+# API 基础地址 (可选，默认: https://api.nodeimage.com)
+# 通常不需要修改
+api_base: https://api.nodeimage.com 

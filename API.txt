@@ -1,0 +1,16 @@
+1、上传图片：
+ curl -X POST "https://api.nodeimage.com/api/upload" \
+  -H "X-API-Key: 634c2ca70fffe268b215af81ae1cfca45b831fc6a2a689e52440a51af4881e51" \
+  -F "image=@/Users/macm4/Downloads/input.avif"
+返回：
+{"success":true,"message":"Image uploaded successfully","image_id":"Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J","filename":"Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif","size":25376,"links":{"direct":"https://cdn.nodeimage.com/i/Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif","html":"<img src=\"https://cdn.nodeimage.com/i/Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif\" alt=\"image\">","markdown":"![image](https://cdn.nodeimage.com/i/Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif)","bbcode":"[img]https://cdn.nodeimage.com/i/Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif[/img]"}}%  
+
+2、删除图片：
+curl -X DELETE "https://api.nodeimage.com/api/v1/delete/{image_id}" \
+  -H "X-API-Key: 634c2ca70fffe268b215af81ae1cfca45b831fc6a2a689e52440a51af4881e51"
+返回：
+{"success":true,"message":"删除成功"}%  
+
+3、获取图片列表
+curl -X GET "https://api.nodeimage.com/api/v1/list" \
+  -H "X-API-Key: 634c2ca70fffe268b215af81ae1cfca45b831fc6a2a689e52440a51af4881e51"
