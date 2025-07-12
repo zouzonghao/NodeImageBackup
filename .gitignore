@@ -44,3 +44,6 @@ temp/
 # 配置文件 (包含敏感信息)
 nib.yaml
 nib.yml
+
+# 用户数据目录
+images/
