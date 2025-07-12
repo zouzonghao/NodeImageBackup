@@ -95,6 +95,10 @@ func init() {
 	syncCmd.Flags().Bool("debug", false, "显示调试信息")
 	listCmd.Flags().Bool("debug", false, "显示调试信息")
 
+	// 添加强制同步参数
+	rootCmd.Flags().BoolP("force", "y", false, "强制同步，无需用户确认")
+	syncCmd.Flags().BoolP("force", "y", false, "强制同步，无需用户确认")
+
 	rootCmd.AddCommand(syncCmd, listCmd)
 }
 
@@ -143,6 +147,51 @@ workers: 10
 	fmt.Printf("   - workers: 并发下载数量\n")
 	fmt.Printf("\n")
 
+	return nil
+}
+
+// 更新配置文件中的token
+func updateConfigToken(newToken string) error {
+	// 获取程序所在目录
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("无法获取程序路径: %v", err)
+	}
+	exeDir := filepath.Dir(exe)
+	configPath := filepath.Join(exeDir, "nib.yaml")
+
+	// 检查配置文件是否存在
+	if _, err := os.Stat(configPath); err != nil {
+		return fmt.Errorf("配置文件不存在: %v", err)
+	}
+
+	// 读取现有配置
+	f, err := os.Open(configPath)
+	if err != nil {
+		return fmt.Errorf("无法打开配置文件: %v", err)
+	}
+	defer f.Close()
+
+	var cfg Config
+	d := yaml.NewDecoder(f)
+	if err := d.Decode(&cfg); err != nil {
+		return fmt.Errorf("解析配置文件失败: %v", err)
+	}
+
+	// 更新token
+	cfg.Token = newToken
+
+	// 重新写入配置文件
+	data, err := yaml.Marshal(&cfg)
+	if err != nil {
+		return fmt.Errorf("序列化配置失败: %v", err)
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("写入配置文件失败: %v", err)
+	}
+
+	fmt.Printf("🔄 已更新配置文件中的token: %s\n", configPath)
 	return nil
 }
 
@@ -234,6 +283,7 @@ type cliParams struct {
 	workers int
 	config  string
 	debug   bool
+	force   bool
 }
 
 func mergeConfig(cfg *Config, cli cliParams) (Config, error) {
@@ -247,6 +297,11 @@ func mergeConfig(cfg *Config, cli cliParams) (Config, error) {
 		if cfg.Token == "" {
 			if err := generateConfigWithToken(cli.token); err != nil {
 				return final, fmt.Errorf("自动生成配置文件失败: %v", err)
+			}
+		} else if cfg.Token != cli.token {
+			// 如果配置文件中的token与命令行提供的不同，更新配置文件
+			if err := updateConfigToken(cli.token); err != nil {
+				return final, fmt.Errorf("更新配置文件token失败: %v", err)
 			}
 		}
 	}
@@ -274,6 +329,20 @@ func mergeConfig(cfg *Config, cli cliParams) (Config, error) {
 		final.APIBase = "https://api.nodeimage.com"
 	}
 	return final, nil
+}
+
+// 格式化文件大小
+func formatFileSize(bytes int64) string {
+	const unit = 1024 * 1024 // 以MB为基准
+	if bytes < unit {
+		return fmt.Sprintf("%.2f MB", float64(bytes)/float64(unit))
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "MGTPE"[exp])
 }
 
 // 获取远程图片列表
@@ -443,6 +512,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	cli.workers, _ = cmd.Flags().GetInt("workers")
 	cli.config, _ = cmd.Flags().GetString("config")
 	cli.debug, _ = cmd.Flags().GetBool("debug")
+	cli.force, _ = cmd.Flags().GetBool("force")
 
 	// 读取配置文件
 	cfgFile, err := loadConfig(cli.config)
@@ -519,7 +589,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	// 删除本地多余文件
 	if len(toDelete) > 0 {
 		fmt.Printf("\n🗑️  正在删除本地多余文件...\n")
-		if !askForConfirmation(fmt.Sprintf("确认删除 %d 个本地文件?", len(toDelete))) {
+		if !cli.force && !askForConfirmation(fmt.Sprintf("确认删除 %d 个本地文件?", len(toDelete))) {
 			fmt.Printf("用户取消删除操作\n")
 		} else {
 			hasExecuted = true
@@ -536,7 +606,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	// 并发下载
 	if len(toDownload) > 0 {
 		fmt.Printf("\n⬇️  正在下载图片...\n")
-		if !askForConfirmation(fmt.Sprintf("确认下载 %d 个远程文件?", len(toDownload))) {
+		if !cli.force && !askForConfirmation(fmt.Sprintf("确认下载 %d 个远程文件?", len(toDownload))) {
 			fmt.Printf("用户取消下载操作\n")
 		} else {
 			hasExecuted = true
@@ -554,7 +624,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 					if err := downloadImage(img.Links.Direct, localPath); err != nil {
 						fmt.Printf("   ❌ 下载失败 %s: %v\n", img.Filename, err)
 					} else {
-						fmt.Printf("   ✅ 已下载: %s (%d bytes)\n", img.Filename, img.Size)
+						fmt.Printf("   ✅ 已下载: %s (%s)\n", img.Filename, formatFileSize(img.Size))
 					}
 				}(img)
 			}
@@ -599,7 +669,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\n📋 远程图片列表 (%d 张):\n", len(remoteImages))
 	for i, img := range remoteImages {
-		fmt.Printf("%3d. %s (%d bytes)\n", i+1, img.Filename, img.Size)
+		fmt.Printf("%3d. %s (%s)\n", i+1, img.Filename, formatFileSize(img.Size))
 	}
 
 	return nil

@@ -2,14 +2,11 @@
 
 ## 🚀 快速开始
 
-### 1. 构建程序
+### 1. 首次使用
 
 ```bash
-# 构建当前平台版本
-make build
-
-# 或者构建所有平台版本
-make cross-build
+# 首次运行，自动生成配置文件
+./nib -t YOUR_API_TOKEN
 ```
 
 ### 2. 查看远程图片列表
@@ -30,6 +27,9 @@ make list
 ```bash
 # 使用配置文件（推荐）
 ./nib
+
+# 强制同步，无需确认
+./nib -y
 
 # 同步到指定目录
 ./nib -d /path/to/images
@@ -65,9 +65,9 @@ make sync
 # 
 # ⬇️  正在下载图片...
 # 确认下载 3 个远程文件? (Y/n): y
-#    ✅ 已下载: Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif (25376 bytes)
-#    ✅ 已下载: image2.png (15678 bytes)
-#    ✅ 已下载: photo3.jpg (8923 bytes)
+#    ✅ 已下载: Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif (0.02 MB)
+#    ✅ 已下载: image2.png (0.02 MB)
+#    ✅ 已下载: photo3.jpg (0.01 MB)
 # 
 # 🎉 同步完成!
 ```
@@ -102,11 +102,11 @@ make sync
 # 🔍 正在获取远程图片列表...
 # 
 # 📋 远程图片列表 (5 张):
-#   1. Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif (25376 bytes)
-#   2. screenshot.png (15678 bytes)
-#   3. photo.jpg (8923 bytes)
-#   4. logo.svg (1234 bytes)
-#   5. banner.webp (4567 bytes)
+#   1. Nx1mskpFq8BTSQVBGEnrDHSxnw95SH3J.avif (0.02 MB)
+#   2. screenshot.png (0.02 MB)
+#   3. photo.jpg (0.01 MB)
+#   4. logo.svg (0.00 MB)
+#   5. banner.webp (0.00 MB)
 ```
 
 ### 示例5: 调试模式
@@ -123,7 +123,14 @@ make sync
 
 ### 1. 配置文件使用
 
-创建 `nib.yaml` 文件：
+#### 自动生成配置（推荐）
+
+```bash
+# 首次运行，自动生成配置文件
+./nib -t YOUR_API_TOKEN
+```
+
+#### 手动创建配置
 
 ```bash
 # 复制配置文件模板
@@ -146,6 +153,13 @@ workers: 15
 ./nib
 ```
 
+#### 更新配置
+
+```bash
+# 更新token，配置文件会自动更新
+./nib -t NEW_API_TOKEN
+```
+
 **注意:** 真实的 `nib.yaml` 文件包含敏感信息，不会被提交到GitHub。请使用 `nib.yaml.example` 作为模板。
 
 ### 2. 定时同步
@@ -154,7 +168,7 @@ workers: 15
 # 使用cron定时同步 (每天凌晨2点)
 # 编辑crontab: crontab -e
 # 添加以下行:
-0 2 * * * /path/to/nib >> /var/log/nib.log 2>&1
+0 2 * * * /path/to/nib -y >> /var/log/nib.log 2>&1
 ```
 
 ### 3. 脚本化使用
@@ -166,7 +180,7 @@ workers: 15
 BACKUP_DIR="/path/to/backup"
 
 echo "开始同步图片..."
-./nib -d $BACKUP_DIR
+./nib -d $BACKUP_DIR -y
 
 if [ $? -eq 0 ]; then
     echo "同步成功!"

@@ -9,8 +9,10 @@
 - 🔄 **单向同步**: 从远程到本地的单向同步
 - 🖥️ **跨平台**: 支持 macOS、Windows、Linux 多平台
 - 🛡️ **安全**: 使用临时文件确保下载完整性，用户确认机制
-- 📊 **详细日志**: 提供详细的同步进度和统计信息
+- 📊 **详细日志**: 提供详细的同步进度和统计信息，文件大小自动格式化
 - ⚙️ **配置灵活**: 支持配置文件，命令行参数优先
+- 🔧 **智能配置**: 首次运行自动生成配置文件，token 自动同步更新
+- ⚡ **强制同步**: 支持 `-y` 参数强制同步，无需用户确认
 
 ## 📋 功能
 
@@ -20,8 +22,10 @@
    - 远程有，本地没有 → 下载到本地
    - 远程有，本地也有 → 保持不变
    - 远程没有，本地有 → 删除本地文件
-4. **用户确认**: 执行删除和下载前需要用户确认
+4. **用户确认**: 执行删除和下载前需要用户确认（支持 `-y` 强制模式）
 5. **自动创建目录**: 本地目录不存在时自动创建
+6. **智能配置管理**: 首次运行自动生成配置文件，token 变化时自动更新
+7. **文件大小格式化**: 自动将文件大小转换为易读格式（MB/GB）
 
 ## 🚀 快速开始
 
@@ -55,8 +59,14 @@ cd NodeImageBackup
 ### 使用
 
 ```bash
-# 基本同步命令（推荐）
+# 首次运行（自动生成配置文件）
+./nib -t YOUR_API_TOKEN
+
+# 基本同步命令（使用配置文件）
 ./nib
+
+# 强制同步，无需确认
+./nib -y
 
 # 指定本地目录
 ./nib -d /path/to/local/directory
@@ -78,19 +88,26 @@ cd NodeImageBackup
 直接运行 `./nib` 执行同步操作。
 
 **参数:**
-- `-t, --token`: API Token (可通过配置文件指定)
+- `-t, --token`: API Token (可通过配置文件指定，首次运行会自动生成配置文件)
 - `-d, --dir`: 本地同步目录 (可通过配置文件指定，默认: 程序目录/images)
 - `-w, --workers`: 并发下载数量 (可通过配置文件指定，默认: 10)
 - `-c, --config`: 配置文件路径 (默认: nib.yaml 或 nib.yml)
+- `-y, --force`: 强制同步，无需用户确认
 - `--debug`: 显示调试信息
 
 **示例:**
 ```bash
+# 首次运行，自动生成配置文件
+./nib -t YOUR_API_TOKEN
+
 # 使用配置文件（推荐）
 ./nib
 
-# 指定token
-./nib -t YOUR_API_TOKEN
+# 更新token（会自动更新配置文件）
+./nib -t NEW_API_TOKEN
+
+# 强制同步，无需确认
+./nib -y
 
 # 指定目录
 ./nib -d /Users/username/Pictures/NodeImage
@@ -128,12 +145,41 @@ cd NodeImageBackup
 
 ## ⚙️ 配置文件
 
-创建 `nib.yaml` 文件来配置默认参数：
+### 自动生成配置
+
+程序会在首次运行时自动生成配置文件：
+
+```bash
+# 首次运行，自动生成配置文件
+./nib -t YOUR_API_TOKEN
+```
+
+生成的配置文件 `nib.yaml` 内容：
 
 ```yaml
-token: YOUR_API_TOKEN
-dir: ./images
+# NodeImage Backup Tool 配置文件
+# 此配置文件已根据您提供的token自动生成
+
+# API Token (必需)
+token: "YOUR_API_TOKEN"
+
+# 本地同步目录 (可选，默认: 程序目录/images)
+dir: ""
+
+# API 基础地址 (可选，默认: https://api.nodeimage.com)
+api_base: "https://api.nodeimage.com"
+
+# 并发下载数量 (可选，默认: 10)
 workers: 10
+```
+
+### 智能配置更新
+
+当您使用新的 token 时，程序会自动更新配置文件：
+
+```bash
+# 更新token，配置文件会自动更新
+./nib -t NEW_API_TOKEN
 ```
 
 **配置文件优先级:**
@@ -141,7 +187,7 @@ workers: 10
 2. 配置文件
 3. 默认值（最低）
 
-### 快速配置
+### 手动配置
 
 ```bash
 # 复制配置文件模板
@@ -242,9 +288,9 @@ make build
 
 ⬇️  正在下载图片...
 确认下载 7 个远程文件? (Y/n): y
-   ✅ 已下载: image1.jpg (25376 bytes)
-   ✅ 已下载: image2.png (15678 bytes)
-   ✅ 已下载: image3.webp (8923 bytes)
+   ✅ 已下载: image1.jpg (0.02 MB)
+   ✅ 已下载: image2.png (0.02 MB)
+   ✅ 已下载: image3.webp (0.01 MB)
    ...
 
 🎉 同步完成!
