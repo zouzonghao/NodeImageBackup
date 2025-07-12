@@ -17,26 +17,6 @@ jobs:
             goos: linux
             goarch: amd64
             artifact_name: nib-linux-amd64
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            artifact_name: nib-linux-arm64
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            artifact_name: nib-windows-amd64.exe
-          - os: windows-latest
-            goos: windows
-            goarch: arm64
-            artifact_name: nib-windows-arm64.exe
-          - os: macos-latest
-            goos: darwin
-            goarch: amd64
-            artifact_name: nib-darwin-amd64
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            artifact_name: nib-darwin-arm64
 
     steps:
     - name: Checkout code
@@ -93,29 +73,34 @@ jobs:
         echo "Current directory contents:"
         ls -la
         
-        # Move artifacts to release directory (artifacts are already in current directory)
-        mv nib-* release/ 2>/dev/null || echo "No artifacts to move"
+        # Extract artifacts from directories and move to release directory
+        for dir in nib-*; do
+          if [[ -d "$dir" ]]; then
+            echo "Processing directory: $dir"
+            # Find the actual executable file in the directory
+            for file in "$dir"/*; do
+              if [[ -f "$file" ]]; then
+                filename=$(basename "$file")
+                echo "Moving $file to release/$filename"
+                cp "$file" "release/$filename"
+              fi
+            done
+          fi
+        done
         
         # Create compressed archives
         cd release
         echo "Release directory contents:"
         ls -la
         
-        # Create compressed archives for each platform
-        for file in nib-*; do
-          if [[ -f "$file" ]]; then
-            if [[ "$file" == *.exe ]]; then
-              # Windows files
-              zip "${file%.exe}.zip" "$file"
-            else
-              # Unix files
-              tar -czf "${file}.tar.gz" "$file"
-            fi
-          fi
-        done
+        # Create compressed archive for Linux amd64
+        if [[ -f "nib-linux-amd64" ]]; then
+          echo "Creating archive for: nib-linux-amd64"
+          tar -czf nib-linux-amd64.tar.gz nib-linux-amd64
+        fi
         
-        # Create checksums
-        sha256sum * > checksums.txt
+        # Create checksums for files only (not directories)
+        sha256sum nib-* > checksums.txt
         
         echo "Final release contents:"
         ls -la
